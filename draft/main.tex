@@ -1,0 +1,993 @@
+\documentclass{article}
+
+
+\usepackage{arxiv}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{amssymb,amsmath}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amssymb}
+\DeclareMathOperator{\E}{\mathbb{E}}
+
+\def\bk{{\bf k}}
+\def\bm{{\bf m}}
+\def\by{{\bf y}}
+\def\bY{{\bf Y}}
+\def\bz{{\bf z}}
+\def\bx{{\bf x}}
+\def\bv{{\bf v}}
+\def\bu{{\bf u}}
+\def\bs{{\bf s}}
+\def\br{{\bf r}}
+\def\bsca{${\bf s}_{CA}$}
+\def\bd{{\bf d}}
+\def\bdb{{\bf \bar d}}
+\def\bdt{{\bf \hat d}}
+\def\mR{\mathcal{R}}
+\def\bmu{\mathbf{\mu}}
+\def\pprior{\mathcal{P_{\rm pr}}}
+
+\newcommand\todo[1]{\textcolor{purple}{(todo: #1)}}
+\newcommand\CM[1]{\textcolor{blue}{(CM: #1)}}
+\newcommand\US[1]{\textcolor{red}{(US: #1)}}
+
+\title{Optimal counterfactual %Gaussian/Gaussianization process 
+analysis for econometrics
+synthetic control 
+applications}
+
+
+\author{
+ Chirag Modi\\  
+  Department of Physics\\
+  UC Berkeley\\
+  \texttt{modichirag@berkeley.edu} \\
+  %% examples of more authors
+   \And
+  Uros Seljak%\thanks{Use footnote for providing further information about author (webpage, alternativeaddress)}
+  \\
+  Department of Physics\\
+  UC Berkeley\\
+  \texttt{useljak@berkeley.edu} \\
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A common statistical problem in econometrics is to estimate 
+the impact of a treatment on a single unit given a control sample with outcomes unaffected by the treatment. Here we  
+develop near optimal minimal variance % Gaussian process
+approach to this problem:
+we use control samples to transform the data to a Gaussian and 
+homoschedastic (stationary)
+form and then evaluate the 
+optimal Gaussian kernel, using Fourier methods and non-parametric 
+power spectrum estimation. We combine this Gaussian 
+prior with the data likelihood given by the pre-treatment data of the single unit, to obtain the optimal synthetic prediction of the 
+unit post-treatment, as it minimizes the error variance of synthetic prediction. 
+We argue that such optimal analysis is unique and 
+has no free parameters, and comes with an
+associated error covariance matrix. 
+We discuss several extensions of the basic
+formalism, such as inclusion of correlations between the single unit 
+and other units and inclusion of correlations 
+of primary variable with other covariates.
+Comparing synthetic data prediction with real data
+can address the 
+question of whether the treatment had a statistically significant impact. For this purpose  
+we develop a-priori hypothesis testing method and evaluate
+the marginal likelihood ratio, or its 
+Bayesian counterpart Bayes factor, which 
+include Occam's razor penalty. 
+We apply the method to the well studied example of CA tobacco sales tax, and compare our results to existing methods. 
+
+
+\end{abstract}
+
+% keywords can be removed
+\keywords{Causal inference, Gaussianization, Gaussian process, Fourier analysis, Hypothesis testing}
+
+
+\section{Introduction}
+
+Drawing inferences about the causal effect of policy interventions from observational data is a challenging problem in econometrics. This is best illustrated with an example: 
+The state of California (CA) implemented tax on Tobacco sales in 1998. Given the outcomes like tobacco sales for CA and all other states over the period of time pre and post-intervention (1970-2017), we are interested in investigating the effect of this treatment in post-treatment data. For example, a question we may ask is: did CA tax have a statistically significant effect on the tobacco sales after the treatment?
+
+In last few decades, several works have developed regression analysis, difference in difference and other methods to tackle this problem \cite{Athey2016}. Given that one cannot observe the causal effects directly, the estimates of them are ultimately based on comparisons of different units with different levels of such interventions. One such approach which has gained popularity over the last decade is synthetic control methods (SCM) \cite{Abadie03, Abadie10} which constructs synthetic post-treatment data of the treated unit ({\it counterfactual}), by matching the pre-treatment outcomes with the weighted average of the control units. The estimated impact is then the difference in post-treatment outcomes between the treated unit and the synthetic control. 
+
+An important limitation of this approach is that if the treated unit does not lie in the convex hull of other control units or if the dimensionality of the problem is high, SCM methods often fail to achieve exact balance on the pre-treatement outcomes and this can lead to biases in the prediction \cite{Ferman16, Ben-Michael18}. For these, as with many other methods, there is also no first principled way of doing a secondary analysis which can shed light on the credibility of the primary analysis and this can end up taking several forms in the literature \cite{Athey2016}. Ideally, one would like to quantify the uncertainty of the counterfactual prediction with an error model and use it to establish if the quantified difference between synthetic data and real data post-treatment is statistically significant. One would expect the variance of this prediction to be small shortly after the intervention and after a long time, the variance should be determined by the observed variance among all other control units.
+Moreover, synthetic data prediction points are also expected to be strongly correlated in time: for instance in case of CA Tobacco tax, sales fluctuate due to many different factors that operate on different time scales. We do not know these factors and so we cannot include them in the analysis, but they cause correlations in the data, whose statistical properties can be extracted from the control data sample. 
+
+In this work, we propose a different approach to do causal inference by performing a longitudinal time correlation analysis. We begin by studying the data correlations for the control samples around their cross-sectional mean (i.e. after removing the mean for every time cross-section from the data) to establish the range of possible variations the data can have in terms of amplitude and time frequency in the absence of any intervention. We then use these control sample correlations to develop a prior on the expected correlations for the treated unit and combine it with the pre-treatment outcomes to develop a model for the counterfactual outcomes in post-treatement time period.  
+
+One technical difficulty with this analysis is that the data correlations may be non-Gaussian and the variance in the data can be time-variant (heteroschedastic). If we find this to be the case, we transform the data into a Gaussian form (we Gaussianize control data) and into a homoschedastic form prior to the analysis. Gaussianity of the data is desirable because all the information for Gaussian distributions is captured by the first two moments. Since we have already de-meaned the data, this means that all the information beyond the mean should be in the covariance that we now wish to estimate. Similarly, homoschedastic or stationarity leads to time translation invariance which implies that the information in correlation function is dependent only on the difference in time-scales ($\Delta T$) and not their time stamps ($T_i$). This reduces the number of parameters determining the covariance structure from $T(T+1)/2$ to $T$, where $T$ is the total number of time-stamps. As a result, the dimensionality of the problem reduces significantly and makes it tractable. 
+
+After these transformations, the problem now becomes a Gaussian process (GP) analysis. A typical GP analysis often uses a parametric family of kernels which can be 
+too restrictive and potentially lead to severe biases. Error analysis of kernel parameters is also often not done. Instead, here we propose using the Fourier counterpart of the correlation function, power spectrum, to do GP analysis. While traditional GP analysis assumes a kernel length as a parameter, here we treat each Fourier mode as independent, latent (unobserved) parameter, allowing us to learn correlations on all scales. 
+This makes the kernel analysis non-parametric, and allows optimal kernel analysis in the context of Gaussian processes. 
+
+Once we have the Gaussian kernel in the form of the 
+power spectrum we apply it to predict the 
+counterfactual. 
+We determine its Fourier modes by combining the prior estimated from the control units and the pre-treatement outcomes for the treated unit under a likelihood model. Likelihood is the probability distribution of the observed data, which assumes a known noise model. For example, in case of CA tobacco tax example, reported tobacco sales may fluctuate relative to true sales because of some known noise sources. However, often this
+noise can be negligible, and if adopt this limit, our synthetic model will exactly balance the pre-treatement outcomes for the treated unit, which is a distinguishing feature of our model. Then, once we have determined the Fourier modes, we can predict the optimal post-treatment outcomes, which we will refer to as counterfactual or synthetic data prediction. This procedure is known in other 
+fields as Wiener filter analysis \cite{wiener64}, and it also gives an estimate for the covariance matrix, which can be shown to minimize the variance of the synthetic data prediction \cite{rybicki92}. It allows us to quantify uncertainty on the synthetic prediction. This joint optimal kernel and optimal synthetic data 
+analysis is an established procedure in other fields \cite{Seljak97}, 
+but to our knowledge has not been applied to econometrics data. 
+
+
+This basic analysis can be extended in several directions. The extension of primary interest in causal inference
+is to take into account the covariates and other confounding variables. For instance, in case of CA tobacco sales, 
+it may be informative to include other observables such as per capita GDP of states. 
+This can be achieved by concatenating this data vector with the primary data of interest (i.e. tobacco sales)
+for all control units and extending the correlation analysis to perform both, 
+both the auto-correlation of each data-vector as well as their cross-correlation.
+In this paper we develop an example of this process and show its impact on the synthetic data. 
+Along similar lines, one can also include the correlations, if present, between the treated unit and other control units.
+However we do not pursue this extension in this work since such correlations are more difficult to establish as  
+we can no longer rely on averaging over all control units. 
+
+Finally, once the synthetic data prediction has been 
+established, one may want to also answer the question whether the
+treatment had a statistically significant effect. One 
+crude way to do so is to plot synthetic data with their 
+error, together with the real data. However, this comparison 
+can be rather misleading due to the correlated nature of 
+the errors. GP analysis provides the full covariance matrix, 
+so one can use it in the analysis. 
+
+
+In this paper we use marginal data likelihood ratio as the hypothesis testing 
+statistic, where marginal means it is averaged over the latent variables of the model.
+This latent space averaging or marginalization is well established both in frequentist methodology (e.g. expectation
+maximization \cite{emalgorithm}) and in Bayesian methodology.  
+The main difference between the two approaches is that Bayesian methodology also includes a prior on models or alternative hypotheses, 
+and the product of this prior and marginal data likelihood given Bayesian posterior. In this work we will 
+adopt equal prior between the two hypotheses, and the likelihood ratio  we use can also be interpreted 
+as the Bayes factor, or Bayesian evidence. While we use the language of Bayesian statistics
+such as prior and posterior, the object we are mainly interested in is the marginal data 
+likelihood, and it only depends on the data and on the parametrization choices of specific hypotheses. 
+Comparing marginal likelihoods for different hypotheses has the advantage of accounting for Occam's razor, penalty 
+of more complex models with more parameters, and as such it is a useful tool both in Bayesian and frequentist 
+methodologies.
+
+This paper is structured as follows: In Section \ref{sec:methodology}, we establish our methodology in a generic framework.
+We begin with the basic model under the assumption of Gaussian, stationary data and develop the Gaussian prior, likelihood, posterior
+and the corresponding covariance matrix for the prediction for our proposed Gaussian process in Fourier space. Next we address the 
+the pre-processing in case of non-Gaussian, heteroskedastic data in subsection \ref{sec:transforms}. Then, in section \ref{sec:results},
+we apply our method to tobacco sales data with the intention of estimating impact of 1988 CA tax on tobacco sales. Lastly, in 
+section \ref{sec:hypothesis1d} and \ref{sec:hypothesis2d}, we develop two methods of performing a-priori hypothesis testing on the
+estimated difference to gauge its significance. We extend our analysis to include covariates in appendix \ref{app:covariates} and
+end with a discussion in section \ref{sec:discussion}.
+
+
+
+
+% The problem we wish to address is best illustrated with 
+% an example: 
+% we are given outcomes, for example tobacco sales for all the 51 states over the period 1970-2017. We focus on 
+% a single unit with a treatment, for example
+% California (CA), which implemented Tobacco tax in 1988.
+% We are interested in investigating the effect of this 
+% treatment in post-treatment data. For example, a question we may ask is: did CA tax have a statistically 
+% significant effect on the tobacco sales
+% after the treatment? 
+
+% Synthetic control methods
+% \cite{Abadie03, Abadie10, Athey2016, Ben-Michael18} 
+% construct synthetic post-treatment data of the single unit, 
+% given the existing knowledge from other units. 
+% In the CA example, we wish to create synthetic CA data given
+% both CA data pre-treatment (prior to 1988), and other states data, 
+% to predict the expected CA data in the absence of said intervention. We also wish to quantify 
+% uncertainty of this prediction with an error model. Once this is established 
+% one then tries to quantify if the 
+% difference between synthetic data and real data post-treatment is 
+% statistically significant, given the error model. 
+
+% There are several factors we need to balance when trying to make a synthetic prediction. The prediction 
+% should smoothly connect to the CA data prior to 1988, and 
+% the variance of this prediction should be small shortly 
+% after the intervention. 
+% After a long time the prediction 
+% should resort to the mean of other states in 
+% the absence of any other information, and the variance 
+% should be determined by the observed 
+% variance among all other units. Moreover, synthetic data 
+% prediction points are expected to be strongly correlated: 
+% sales fluctuate due to many different factors that operate 
+% on different time scales. We do not know these factors
+% and so we cannot include them in the analysis, but they 
+% cause correlations in the data, whose 
+% properties can be extracted from the control data sample. 
+
+% Our approach to this problem will be to first perform data correlation 
+% analysis of the control samples around their mean. This allows us 
+% to establish the range of possible variations the data
+% can have in terms of amplitude and time frequency in the absence of 
+% any intervention. The technical difficulty in this task is 
+% that the data correlations may be non-Gaussian and non
+% time-invariant (heteroschedastic). For this reason we 
+% first transform the control data into a Gaussian form (we Gaussianize control data), if there is evidence for it, 
+% and into a homoschedastic form, if there is evidence for 
+% heteroschedasticity. 
+
+% Once in this form the correlation analysis simplifies 
+% because all the information beyond the mean is in the 
+% time translation invariant 
+% correlation function, or its Fourier analog, power spectrum. 
+% The problem now becomes a Gaussian process analysis. 
+% The
+% method we have chosen for this task is Fourier space power spectrum 
+% analysis. It has the advantage of being 
+% non-parametric,  
+% allowing optimal kernel analysis in the context of Gaussian 
+% processes. 
+% The method also provides 
+% simple expressions for the errors on the power spectrum coefficients, allowing uncertainty quantification. 
+% In contrast, a typical 
+% Gaussian process (GP) analysis often 
+% uses a parametric family of kernels, which may be 
+% too restrictive, and can potentially lead to severe 
+% biases. Error analysis of kernel parameters is often 
+% not done, while we rely on it to establish the statistical
+% significance of the power spectrum coefficients. 
+
+% Once we have established the optimal Gaussian prior, we can 
+% combine it with the pre-treatment data likelihood, to 
+% determine the optimal post-treatment prediction, which we will 
+% refer to as synthetic data prediction. This procedure
+% is known as Wiener filter analysis \cite{wiener64}, and it can be shown 
+% to minimize the variance of the synthetic data prediction \cite{rybicki92}. 
+% Likelihood 
+% is the probability distribution of the observed data, which 
+% assumes a 
+% known noise model. For example, reported 
+% tobacco sales may fluctuate relative to true sales because of 
+% some known noise sources. 
+% However, often this
+% noise can be negligible, and we will adopt this 
+% limit for our illustrative example. This means 
+% that our synthetic model must equal observed CA data 
+% at the treatment time (1988), which is a distinguishing 
+% feature of our model. The resulting synthetic data 
+% prediction comes with an associated covariance matrix. 
+% This joint optimal kernel and synthetic data 
+% analysis is an established procedure in other fields \cite{Seljak97}, 
+% but to our knowledge has not been applied to econometrics 
+% data. 
+
+% This basic analysis can be extended in several 
+% directions. First of all, the single unit (CA)
+% may be correlated with some of the other 
+% units. If so then its post-treatment synthetic 
+% prediction would also be affected by the measured 
+% values of these other units. The formalism above 
+% can easily be extended to this case. 
+% This correlation is 
+% however more difficult to establish, because we can 
+% no longer rely on averaging over all control units. 
+% We will show
+% in our tobacco example that we do not see evidence of a strong
+% correlation. 
+
+% Second extension is to include other covariates that may 
+% be informative of tobacco sales. Some examples 
+% in the literature are per capita GDP XYZ. Suppose we want 
+% to include one such covariate (e.g. GDP) 
+% in addition to the main variable (tobacco sales). 
+% We can form a vector of twice the number of all control samples 
+% (e.g. control states) combining these two, and now the correlation analysis involves
+% both the auto-correlation of the two, as well as their 
+% cross-correlation. In this paper we develop an example of this process and show its impact on the synthetic data. 
+
+% Finally, once the synthetic data prediction has been 
+% established, one may want to also answer the question whether the
+% treatment had a statistically significant effect. One 
+% crude way to do so is to plot synthetic data with their 
+% error, together with the real data. However, this comparison 
+% can be rather misleading due to the correlated nature of 
+% the errors. GP analysis provides the full covariance matrix, 
+% so one can use it in the analysis. 
+
+% %One way to 
+% %quantify the significance is to perform hypothesis testing, after 
+% %defining the two hypotheses.  
+
+% In this paper we use marginal data likelihood ratio as the hypothesis testing 
+% statistic, where marginal means it is 
+% averaged over the latent variables of the model. This latent space averaging or 
+% marginalization is well established both in frequentist methodology (e.g. expectation
+% maximization \cite{emalgorithm})
+% and in Bayesian methodology.  
+% The main difference between the two is that 
+% Bayesian methodology also includes a prior on models or alternative hypotheses, 
+% and the product of this prior and marginal data likelihood given Bayesian posterior. 
+% In this work we will 
+% adopt equal prior between the two hypotheses, and the likelihood ratio  we use can also be interpreted 
+% as the Bayes factor, or Bayesian evidence. While we use the language of Bayesian statistics
+% such as prior and posterior, the object we are mainly interested in is the marginal data 
+% likelihood, which depends only on the data and on 
+% the parametrization choices of specific hypotheses. 
+% It has the advantage of accounting for Occam's razor, penalty 
+% of more complex models with more parameters, and as such 
+% it is a useful tool both in Bayesian and frequentist 
+% methodologies.
+
+\section{Methodology}
+\label{sec:methodology}
+
+%\US{Why not i=0 for single unit and we observe i=1-J?}
+
+In this section, we develop our approach to comparative case study research and asses the impact of the intervention of interest.
+Suppose that we observe $J + 1$ samples over a time period $T$. Without loss of generality, lets assume that only the first sample is exposed to the intervention of interest at time $T_0$ while the other regions can be used as `control' set.
+Let $Y^N_{it}$ and $Y^I_{it}$ be the outcomes that would be observed in the region $i$ at time $t$ in the absence and the presence of any intervention respectively, where the regions span $i\in[1,J+1]$ and $t\in[1, T]$. Then, under the current assumption of only the first unit being exposed at time $T_0$, we are interested in reconstructing $Y^N_{1, t},  \forall t\in[T_0, T]$. We refer to this as the {\it counterfactual} - i.e. the possible outcomes in the absence of any intervention in the region that has actually undergone intervention. 
+
+Our approach is based on the Gaussian Process analysis of stationary 
+time series data relative 
+to the mean. Since we are not guaranteed the data follow these
+assumptions we first  transform 
+the data such that they are close to this form. However, 
+for pedagogical reasons 
+we will start with the basic GP analysis and then extend it 
+to account for non-Gaussianity and non-stationarity (hetero-isoscedacity). 
+
+Specifically, we begin with the assumption that every region has Gaussian correlations on different time-scales that can be estimated using the Fourier transform of their time series data. Furthermore, all the regions follow some average correlation on global scale with individual fluctuations around it. Then one can use the regions from the control set to estimate the prior on the Gaussian kernel for the temporal fluctuations in a non-parametric way. This can then be combined with the pre-intervention data for the exposed unit and to estimate the temporal correlations for it. The counter-factual data for the exposed unit pre- and pos-intervention should be thus correlated on long time-scales and comparing the observed data with this counterfactual can be used to estimate the impact of the intervention of interest. We begin with the Gaussian model because it requires 
+the least amount of data to determine its probability distribution. Later we generalize this 
+to the non-Gaussian distributions, which require more control samples to avoid 
+over-fitting their kernel parameters. 
+
+\subsection{Basic model: stationary Gaussian Process analysis}
+\label{sec:prior}
+
+Given the time-series data $Y_{i, t}$ for $J+1$ regions from the period of $T_i=0$ to $T_f=T$ where the first region undergoes an intervention at time $T_0$, we are interested in reconstructing the counterfactual $Y^N_{1, t} \forall t\in[T_0, T]$ in the absence of said intervention. To this end, we begin by estimating the global average that we have assumed is followed by all the units and we are interested in estimating the correlations in the fluctuations of the exposed unit around this mean. We use the units from the control set to determine the mean
+\begin{equation}
+    \bar{Y_t} = J^{-1}\sum_{i=2}^{J+1} Y^N_{i,t} 
+\end{equation}{}
+
+Let $d_{i, t} = Y^N_{i,t} - \bar{Y_t}$ be the fluctuations around this mean. 
+
+%% \US{Define stationary noise first. Do we have to use word counter-factual? I have no idea what it means.}
+
+Since we assume the data are homoschedastic or stationary, 
+the correlations between the data only depend on the time 
+difference, and can be described with correlation function 
+as a function of time difference. Its Fourier space 
+analog is the power spectrum, which is given by the 
+variance of Fourier modes: stationarity guarantees that 
+the cross-correlations between the Fourier modes vanish, 
+and the number of parameters to determine the full 
+covariance structure scales as $T$ rather than $T^2$. 
+
+The Fourier modes and power-spectrum for these time-series data can be estimated easily using Fast Fourier Transforms (FFTs). 
+We will denote the FFT transformation from 
+Fourier space to real space as $\mR^\dagger$ and its inverse 
+as $\mR$. These are both matrix operations, which take a 
+vector and return a vector. 
+The Fourier transform ($\mathcal{R}^\dagger$) of the data gives us the vector of Fourier modes
+\begin{equation}
+    \bs_i =  \bu_i+i\bv_i = \mR^\dagger\bdb_i
+\end{equation}
+where we use the vector notation of bold symbols (for eg. $\bs$) to imply the vector of time series data. The power spectrum of these modes is the measure of temporal correlations in the data, 
+defined as $\mathcal{P}$:
+\begin{equation}
+    \mathcal{P}_i = \bs_i \bs_i^\dagger, \,\, \mathcal{P}_{ik}=u_{ik}^2+v_{ik}^2, 
+\end{equation}
+where $k$ is the index of Fourier frequencies, further defined below.  
+
+We are interested in measuring these Fourier modes for the exposed unit, $\bs_1$, since these are the latent variables that allow us to estimate the counter-factual $Y^N_{1,t}$.
+
+%\subsubsection{Gaussian prior}
+Under the assumption of Gaussianity and zero-mean (since we are measuring fluctuations relative to the global average),
+%\CM{Little confused regarding this, should this argument not hold only for zero mode?}
+the prior on these modes is completely determined by their variance i.e. the power spectrum. We estimate this prior power spectrum simply as the average of the power-spectra of the control units,
+\begin{equation}
+    \pprior = J^{-1}\sum_{i=2}^{J+1} \mathcal{P}_{i} . 
+\end{equation}
+The error estimate for un-padded data is given by 
+moments of Gaussian field, $\E([s^2-\E(s^2)]^2=2\E(s^2)^2$, which, together with the fact that a complex mode has two 
+independent Gaussian realizations (real and imaginary), gives
+\begin{equation}
+\frac{\sigma_{\pprior}}{\pprior}=J^{-1/2}. 
+\label{err}
+\end{equation}{}
+If number of control samples $J$ is large this error is sufficiently small that no further regularization 
+of the power spectrum estimate is needed. 
+For $J=38-50$ (number of states) the relative error is 0.14-0.16, 
+which is small enough for this to be the case. 
+If the number of control samples
+were significantly smaller we would need to further regularize the power spectrum estimation, such as combining different Fourier modes
+into a wider bandpower. 
+We will give an example below in the context of cross-correlation analysis. 
+
+\subsubsection{Over-parametrization with zero padding}
+\label{sec:zeropadding}
+An underlying assumption of Fourier transforms is that the data is periodic in nature, which is not the case here. To account for this, we will zero pad the data. Since the time sampling of the data is 
+fixed, 
+this means that we are over-parametrizing the 
+problem in terms of Fourier modes: as the zero 
+padding interval grows the number of parameters grows. 
+However this introduces mode correlations and modifies the power spectrum in a smooth, but non-trivial, manner that needs to be corrected for. This can be done using simulations, as described next. 
+
+We begin by estimating the power spectrum of the true unpadded data ($\mathcal{P}_0$). In the absence of any binning, this is a vector of length of $T$, sampled at frequencies $\nu_t$ where $t \in [1, T]$. Let us assume that we pad the data on either sides with zeros for length $t_p$. Then the data vector length is $T+2t_p$. We simulate a data realization, $x_j$, of this new length by sampling 
+from the power spectrum at $n=T+2t_p$ frequencies between $\nu_1$ and $\nu_T$.
+%\CM{Technically, not in this frequency range, but this is how I have done sine the correct way, where the fundamental frequency will change, will involve extrapolating PS which seems like a bad thing to do given the red spectra we have. Also, I cannot think of any other difference in the implementation that it will make, so unsure if it will make any difference except for the extrapolation.}.
+To estimate the effect of padding, we then set the $t_p$ values at the beginning and end of the simulated data to zero $x_{j0}$ and measure the power spectrum ($\mathcal{P}_{x0}$) of the zeroed simulated data vector. The ratio of the original and new power spectra, i.e. $\mathcal{T} = \mathcal{P_0}/\mathcal{P}_{x0}$, is the transfer function with which the padded power-spectrum needs to be multiplied to correct for the zero-padding. We repeat this exercise multiple times to get rid of sampling variance and estimate the mean transfer function $\bar{\mathcal{T}}$. The prior power-spectrum estimated with the zero-padded data vectors of control units is corrected with this simulated transfer function. 
+
+As mentioned above the error estimate of the power spectrum of equation \ref{err} only applies for no zero padding. 
+If we use padding then the Fourier modes become correlated. We can group the modes into bins of width $2\pi/T$, so that for each such bin the error estimate of equation \ref{err} still 
+applies and we still have $T$ bandpower bins. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Likelihood and posterior}
+\label{sec:likelihood}
+We are now in a position to construct the posterior for the latent parameters of the exposed units ($\bs_1$). Given the prior and the Gaussian noise assumption for the likelihood, the posterior probability for the parameters $\bs_i$ is
+
+\begin{equation}
+    P(\bs_1|\bd_1) = (2\pi)^{-(M+N)/2} {\rm det} (\pprior \mathcal{N})^{-1/2}{\rm exp} \Big(-\frac{1}{2} \Big\{\bs_1^\dagger \pprior^{-1}\bs_1 + [\bd_1 - \mathcal{R}\bs_1]^\dagger \mathcal{N}^{-1}[\bd_1 - \mathcal{R} \bs_1] \Big\}\Big)
+    \label{eq:posterior1}
+\end{equation}
+where  $M, N$ is the dimension of the latent parameter and data space, both equal to $T$ in the absence of binning; $\mathcal{N}$ is the noise covariance matrix for the data. We will model it 
+as a diagonal, $\mathcal{N}=\bf{I}\sigma_t^2$. 
+The power spectrum $\pprior$ is the covariance matrix 
+of the latent parameters, which is diagonal in Fourier space due to assumed stationarity of the 
+process. 
+
+This posterior can then be maximized with respect to the latent parameters for the pre-intervention data to obtain a maximum-a-posterior (MAP) estimate of the parameters, which can then in turn be used to estimate the counter-factual. This gives the loss function to be minimized with 
+respect to $\bs_1$as the negative log posterior, dropping all the irrelevant constants,
+
+\begin{equation}
+    % \mathcal{L} = \frac{\sum_{t = T_i}^{T_0} \Big(\bar{Y}_t + \mathcal{R}s_{1, t} - Y^N_{1,t} \Big)^2}{\sigma^2} + \frac{\bs_{1, t}\bs_{1, t}^\dagger}{\matcal{P}_{\rm prior}}
+    \mathcal{L} = \sum_{t = T_i=1}^{T_0} \frac{ \Big(\mathcal{R}s_{1, t} - d^N_{1,t} \Big)^2}{\sigma_t^2} + \frac{\bs_{1}\bs_{1}^\dagger}{\pprior}.
+    \label{eq:posterior2}
+\end{equation}
+Since we want synthetic prediction for post-treatment data, the likelihood only 
+includes the data prior to the treatment,i.e. $\forall t \in [1, T_0]$, i.e. we set $\sigma^2_{t \in (T_0, T)} \rightarrow \infty$. For the period before the intervention, if we have some prior knowledge about the noise, we can use it to construct $\sigma^2_{t \in (T_i, T_0)}$. Otherwise under the assumption of no noise in the data, we set the noise to be very small ($\sigma^2_{t \in (T_i, T_0)} \rightarrow 0$). In practice this means that 
+we choose a value of $\sigma_t$ that is small enough that the results do not depend on it. 
+The 
+Fourier modes $\bs_{1}$ run from 0 to $T+2t_p$.  
+
+%where we have assumed the data noise matrix $\mathcal{N}$ to be diagonal with entries $\sigma_t^2$, used the fact that the prior power spectrum is diagonal and the prior term is summed over all the latent parameters i.e. $\forall t \in [1, T]$. 
+%In case of no noise in the data, we can repeat the exercise for vanishing noise variance $\sigma_t^2 \rightarrow 0$ until convergence. 
+
+The procedure described here is equivalent to Wiener filter reconstruction of the signal given noisy data. Our method thus allows us to optimally use the control states to get a prior on the exposed unit and then use the pre-intervention data to constrain the latent parameters measuring correlations in the data vector. Furthermore, this is done in an optimal and non-parametric fashion with the only assumptions Gaussianity and stationarity in this basis. In the case of vanishing noise, this also allows us to fit for the observed pre-intervention data of the exposed unit exactly, unlike other regression and synthetic control methods. If $\hat \bs_{1}$ is the vector of the latent parameters that maximizes the negative log-posterior, our synthetic model, i.e. our prediction for the counter-factual of the exposed unit ($\hat{Y}^m_{1, t}$) is given simply by the Fourier transform
+\begin{equation}
+    \hat{Y}^m_{1,t} = \bar{Y}_t + \mathcal{R}\hat{s}_{1, t}
+    \label{eq:model}
+\end{equation}
+
+Post-intervention, this is compared with the data $Y^I_{1, t}$ to estimate the impact of the intervention.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Covariance matrix estimate}
+\label{sec:cov}
+
+In addition to the point estimate of the counter-factual, we would also like an estimate of the error on the said point estimate. This can be estimated from the covariance matrix of the residuals, $\br = \bs - \hat {\bs}$, which can be obtained from the inverse Hessian of the Gaussian posterior (Eq. \ref{eq:posterior1}) at the MAP,
+\begin{equation}
+    C_{\bs} = \langle(\bs-\hat{\bs})\dagger (\bs-\hat{\bs})\rangle = \left( \nabla_{\bs}\nabla_{\bs} \mathcal{L}\right)^{-1}= (\pprior^{-1} + \mR^\dagger \mathcal{N}^{-1} \mR)^{-1}. 
+    \label{eq:cov}
+\end{equation}
+This is the covariance in Fourier space. 
+The corresponding covariance matrix for the predicted model in data space is
+\begin{equation}
+    C = \mR((\pprior^{-1} + \mR^\dagger \mathcal{N}^{-1} \mR)^{-1}\mR^\dagger 
+    \label{eq:cov2}
+\end{equation}
+This matrix is in general non-diagonal. 
+
+
+\subsection{Extensions beyond the basic model: Non Gaussian and non-stationary data}
+\label{sec:transforms}
+Our analysis makes assumptions regarding the stationarity and Gaussianity of the data. However these assumptions do not always hold in the case of real data.
+In this case we can pre-process the data ($y_i$) with some non-linear or time dependent variable transformations ($\Psi$) such that these assumptions hold on the transformed dataset ($z_i = \Psi(y_i)$). This is a common practice in econometrics with the most common transforms used being the power transforms \cite{boxcox, transforms}. In this paper we assume this transformation is point-wise, as the number of control data samples is to small to look for non-Gaussian features in the correlations. 
+Then, under these transformations, the distribution of the data vector will transform as \cite{Seljak19}
+
+\begin{equation}
+    p(\by) = \mathcal{N}(\bz; \mu, \sigma) \Pi_{i=1}^{J+1} |J_i|; \quad J_i = \frac{dz_i}{dy_i} =  \frac{d\Psi(y_i)}{dy_i}
+    \label{J}
+\end{equation}
+where $J_i$ is the Jacobian of the transformation at the datapoint $i$ and $\mathcal{N}(\bz; \mu, \sigma)$ is the Normal distribution with mean $\mu$ and variance $\sigma^2$ since we want the transformed variable to be Gaussian distributed. 
+\begin{figure}
+    \centering
+    % \resizebox{1\columnwidth}{!}{\includegraphics{./figs/transform.png}}
+    % \caption{Effect of Gaussianizing transforms: We show the effect of the non-linear tranforms to Gaussianize the data. The left panel shows the time-series data for all 51 states and the middle panel shows the transformed version of the same. The right panel shows the histograms for the two cases with Gaussian fits to them. The transformation reduces the skewness and impact of outliers such that the histogram is now fit better with a Gaussian, and also makes the data more `stationary' such the mean and the variance across years does not change significantly. 
+    % }
+    \resizebox{1\columnwidth}{!}{\includegraphics{./figs/transform2.png}}
+    \caption{Effect of Gaussianizing transforms: We show the effect of the non-linear tranforms to Gaussianize the data. The left column shows the time-series data for all 38 states before and after Gaussianization. The middle panel shows the standard deviation across all the states as a function of years before and after the transform to highlight how the data variance becomes more stationary. The right panel shows the histograms for the two cases with Gaussian fits to them. The transformation reduces the skewness and impact of outliers such that the histogram is now fit better with a Gaussian.  
+    }
+\label{fig:transform}
+\end{figure}
+
+The variable transformations $\Psi$ need to be bijective so that we can easily go from one set of the variables to the other and back, as well as estimate the Jacobian in a fast, simple way. Since there are many ways to create a non-Gaussian distribution, one also needs to be careful not to overfit. Here we will use two very simple families of models, such as sinh/arcsinh (AS) \cite{Schuhmann16}
+\[
+  {\rm AS}_\eta(y) =\begin{cases}
+               \eta ^{-1} {\rm sinh}(\eta y) &\quad (\eta>0)\\
+               y & \quad (\eta=0)\\
+               \eta ^{-1} {\rm arcsinh} (\eta y) &\quad (\eta<0)
+            \end{cases}
+\]
+ and Yeo-Johnson (YJ) transformations \cite{yjtransform}
+\[
+  {\rm YJ}_\epsilon(y) =\begin{cases}
+               \frac{(y+1)^{1+\epsilon } - 1}{1+\epsilon}  &\quad (y>0, \epsilon \neq 1)\\
+               -\frac{(-y+1)^{1-\epsilon } - 1 }{1-\epsilon}  &\quad (y<0, \epsilon \neq -1)
+            \end{cases}
+\]
+to do this task. These transformations can be concatenated together such that we have:
+\begin{equation}
+    z = \beta \times\rm{AS}_\eta^{n_a} [ {\rm YJ}_\epsilon^{n_y} (y/\beta)]
+\end{equation}
+where the index $n_a, n_y$ are the number of times we successively apply AS and YJ transformations respectively and $\beta$ is a scaling factor. This set of transformation has 5 free parameters $(\beta, \mu, \sigma, \eta, \epsilon)$ that are fit by fitting the pdf of the inverse-transformed Normal distribution to that of the data histogram. For simplest datasets minimizing a simple L2 norm of the difference between the pdf and the data histogram suffices, but depending on the structure of the data one has the flexibility to use different loss functions such as logarithm of pdfs, etc. Furthermore, while here we have set up the discussion in terms of a 1-dimensional dataset, extension to multi-dimensional data is straightforward by generalizing the transformation parameters to vectors of length equal to the number of dimensions. Additionally, in case of more than one dimensions, its also possible to rotate and mix the dimensions after successive transformation steps and concatenate these steps to create more complex chains of transformations. 
+
+We also need to address the stationarity (homoscedasticity) 
+assumption. Note first that we do not assume this for the 
+mean. 
+To verify the assumption beyond the mean
+we evaluate the variance of the control
+data as a function of time. If there is statistically 
+significant time dependence of the variance 
+we can evaluate its trend 
+using some low order polynomial fit, and then rescale
+the data (relative to the mean) such that the variance is now 
+independent of time. We absorp this procedue in $\Psi$ as well. 
+We recommend this procedure to be done after the Gaussianization of the data, as discussed further in next section. 
+
+As the final step, we can also Gaussianize the data in 
+Fourier space. We take all the real and imaginary components of Fourier modes and divide 
+them by their variance $\pprior(k)^{1/2}$. We 
+map the probability distribution of these modes
+into a Gaussian using another nonlinear bijective
+transformation $\Phi(\bs)$, accounting for its
+Jacobian of the transformation as well. 
+We are not guaranteed that we have fully Gaussianized the data with these procedures. However, when the 
+control data sample is small we often do not have 
+enough information to go beyond the steps 
+outlined here.
+
+To relate this to the panel data setup along with the Fourier modes as we have used in the previous subsection, our non-Gaussian data corresponds to the fluctuations around the mean, $d_{i, t}$. Thus given non-linear Gaussianizing transformations $\Psi$
+and $\Phi$, we have:
+\begin{align}
+    z_{i, t} &= \Psi(d_{i, t}) \\
+    \bs_i &= \Phi(\mathcal R^\dagger \bz_i) \\
+    Y_{i,t} &= \bar{Y}_{t} + \Psi^{-1}[\mathcal{R}\Phi^{-1}(\bs_i)]
+\end{align}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Example application: CA tobacco sales tax}
+\label{sec:results}
+
+\begin{figure}
+    \centering
+    \resizebox{1\columnwidth}{!}{\includegraphics{./figs/padding3.png}}
+    \caption{Fourier modes: (Left) Histogram of real and imaginary components of Fourier modes for Gaussianized data and Gaussian fits to them. 
+    %The peak at zero for imaginary components is expected due to nyquist modes being completely real due to the data being real, which leads to Hermitian Fourier modes. 
+    (Center and right) Effect of padding/over-parametrization: we show the convergence of the prior power spectrum after correction with simulations (center), and estimated counter-factual with associated errors (right), for different zero-paddings. We contrast it with unpadded case (orange). We see the results are independent of padding if larger than the observed time interval. 
+    The errors on the power spectrum (not shown) are 16\% per each bin, consistent with the fluctuations seen. 
+    }
+\label{fig:padding}
+\end{figure}
+
+California implemented Tobacco tax in 1988 $T_0 = 1988$ and we are interested in investigating the effect of this tax on the tobacco sales in the state. For this purpose, we take the tobacco sales data from \cite{sourcetobacco, Orzechowski12} for all the 51 states from the period of $T_i=1970$ to $T=2017$. Following previous analyses \cite{Abadie10, Ben-Michael18}, we drop 13 states since they passed their versions of tobacco laws within the period of analysis. The remaining 38 states make our control group. We have 48 yeas of data for all the states, with 18 years of pre-intervention data and 30 years of post-intervention data for California. We follow the methodology outlined in section \ref{sec:methodology} to model the counter-factual for California in these post-intervention years from $T_i=1989$ to $T=2017$.
+
+Since our `data' corresponds to the variations around national mean, we first subtract the yearly national mean for all the states in the control group. Then we plot the time-series data for all the states in the control group, as well as the histogram of the combined sales across all states and years. We show this is Fig. \ref{fig:transform}, first and last panel, respectively. Their are clear outliers in the control group and due to this, the variance of the data across the years does not remain the same (middle panel). Hence we apply the non-linear transformations to Gaussianize our data. We find that applying a single set of transforms with $n_a=1$ and $n_y=4$ suppresses the outliers, as shown in the bottom left panel of \ref{fig:transform}, and the transformed data is fit better 
+as a Gaussian than the fiducial data (bottom right). 
+
+We show the time dependent variance of this transformed `Gaussian' dataset in the middle panel of Fig. \ref{fig:transform}. Time variation has been strong reduced. 
+We plot the mean variance under the assumption of stationarity, 
+which is consistent with the data, plus statistical 
+fluctuations of order 10\%. It is more difficult to address the statistical 
+significance of these fluctuations relative to the time 
+averaged mean 
+variance, since the data are correlated, but overall the 
+data are reasonably consistent with stationarity assumption, 
+with possible exception of the years after 2010, which however 
+have little relevance for the counter-factual analysis due 
+to their large time separation from 1988 intervention. For 
+this reason we do not perform any additional rescaling of the 
+data to improve stationarity, as it would have made 
+little difference to the final results. 
+Henceforth, we will refer to the transformed Gaussian data simply as the data when describing our analysis and the original data is referred to as the fiducial or the raw data. 
+
+As previously pointed out, we can still Gaussianize the Fourier modes if we find evidence of non-Gaussianilty in them.
+However we do not find it necessary for this dataset. We show this in Figure \ref{fig:padding} left panel, where we show the 
+histogram %of real and imaginary components 
+of all Fourier modes and Gaussian fits to it. 
+%The peak at zero is expected for imaginary modes since we are
+%dealing with completely real data and hence the Hermitian Fourier modes imply that Nyquist and zero modes of Fourier components are completely real.
+%Given this, the Gaussian fit the histograms well and hence Gaussianizing the data in panel data space is sufficient for our purpose here. 
+
+For our analysis, we zero-pad the Gaussian data on one side with the same length as the data, i.e. $t_p = T$. We repeated the analysis with larger zero-paddings to establish that, when properly accounted for using simulations, this does not impact the results and the procedure is unique. 
+This is a statement that we only need over-parametrization of a factor of two, beyond
+which there are no additional gains. 
+In Fig. \ref{fig:padding}, we show the measured power spectrum
+for several different zero-padding lengths. Dashed is the 
+raw power spectrum, while solid is the power spectrum after 
+the padding correction, as described in section \ref{sec:zeropadding}. 
+We observe that the power spectrum has a lot of power on 
+large scales (small frequencies): the fluctuations 
+are dominated by the longest period modes. 
+We also show the effect of zero padding on the estimate of the counter-factual and associated error bars. 
+In the absence of padding, we underestimate the prior power spectrum, and hence the error-bars, while over estimating the difference in the observed and the counter-factual sales.  Zero-padding the data without any correction suppresses the power spectrum since we artificially reduce the signal with 
+zero padding. However, this can be corrected with the simulations procedure described above, and the convergence of the lines for different zero-paddings shows that if the padding is sufficiently large, $2t_P>T$, we correctly estimate the prior power spectrum, as well as the magnitude of difference in sales and its errors. 
+% \US{I don't think we need to pad on both ends, it is periodic, it would be easier to say $2t_p=t_p$.}
+
+
+\begin{figure}
+    \centering
+    \resizebox{1\columnwidth}{!}{\includegraphics{./figs/predict_hypA.png}}
+    \caption{(Left) Model prediction for Cigarette sales in California when the analysis is done with the Gaussian data (blue) and the raw data (blue) alongwith the mean national sales (purple) and the true California sales (green). The vertical gray line is the year when CA Tax law was passed.
+    We also plot 1 sigma error, but warn that the covariance matrix is full rank and showing diagonal only is insufficient.
+    (Right) The likelihood ratio of the observed post-intervention data under the model of Section \ref{sec:hypothesis1d} as the function of model parameter $\alpha$.}
+\label{fig:predict}
+\end{figure}
+
+Once we established the optimal power spectrum analysis, we can also do optimal synthetic data analysis. 
+Figure \ref{fig:predict}, left panel, shows the model prediction (labeled as Gauss prediction) for the California sales with expected error-bars, along with the true California sales and the mean national sales. As expected, our model is able to fit the California sales in pre-intervention years exactly, unlike other regression and synthetic model studies \cite{Ben-Michael18}. Immediately after the intervention ($T_0$), we see that the counter-factual California data is still driven by the long-range temporal correlations learnt from fitting the pre-intervention years. As we move away from intervention, the model is increasingly driven by the prior and hence approaches the national mean, as one would expect in the absence of any other extraneous information. Moreover, the errors in the model prediction increases as we move further away from $T_0$, which is expected as the influence of the pre-treatment data decreases. This implies that to investigate the impact of the intervention, most of the significance will be driven by the years immediately after the intervention, and the influence decreases further away in time. Given our model prediction, we estimate a decrease of 34 packs in sales in California in 2000 due to tax imposed in 1988. 
+
+In addition, we also show the prediction when we directly do the analysis on the raw data, without Gaussianizing it (labeled as Fiducial prediction). While the mean prediction is not significantly different in the two cases, the errors in the model prediction are significanrtly higher, by a factor of $1.5-2$. This is due to the non-Gaussian outliers that have a significant contribution to the variance. 
+Incorrectly estimating these errors and the corresponding covariance matrix can significantly alter (and weaken) the statistical significance of the measured decrease as we investigate in the next section. In the end, we note that while the analysis here only takes into account the data for tobacco sales, often one would be interested in including other datasets that can be informative of the variable of interest. We outline the extendion of our analysis to these multi-dimensional datasets in Appendix \ref{app:covariates}.
+
+% \subsection{Extensions} 
+
+\section{Hypothesis testing of the treatment impact}
+\label{sec:significance}
+
+Given the model prediction and its covariance, we now turn to the question how to estimate the statistical significance of the estimated difference between the synthetic data and real data. Unlike the counterfactual analysis of previos section, 
+this question does not have a unique answer. We will attempt to give a 
+sensible prescription that is not post-treatment data dependent, but 
+we do not claim uniqueness or optimality of this method. 
+We will address it as a  
+hypothesis testing problem and answer it with a marginal likelihood ratio test (or Bayes factor). We define hypothesis A as
+treatment having no impact and hypothesis B as treatment 
+having an impact and reducing the tobacco sales. For Bayesian type analysis we also assume both hypotheses have 
+equal prior probability, in which case the likelihood ratio also gives Bayesian posterior odds. 
+
+\subsection{Hypothesis testing: an a posteriori upper limit}
+\label{sec:hypothesis1d}
+One can establish an upper limit on the hypothesis testing
+as a simple likelihood ratio test, where we compare the likelihood of the observed data assuming different counter-factuals for a fixed covariance. To model this, we parameterize our model prediction with parameter $\alpha$, which allows us to smoothly interpolate the counter-factual between our fiducial model prediction and the actual observed data,
+\begin{equation}
+    m_t(\alpha) = \alpha (Y^I_{1, t} - \hat Y^m_{1, t}) +  \hat Y^m_{1, t}
+    \quad \forall  t \in (T_0, T_f).
+\end{equation}
+%\US{You have a vector and an index notation, make data space Y also a vector!}
+% We model the data likelihood given the model as a Gaussian
+% \textbf{
+% \begin{equation}
+%     p[Y^I_{1, t}|\bm(\alpha)] &= (2\pi)^{-N_{\rm post}/2}\det C^{-1/2}\exp\left[-\big(\bm(\alpha) - Y^I_{1, t}\big)^T C^{-1} \big(\bm(\alpha) - Y^I_{1, t}\big)/2\right].
+%     \label{plik}
+% \end{equation}}
+In case of non-linear transformations $\Psi$ of the data, to estimate the data likelihood we need to use the Jacobian (J)
+of equation \ref{J} for the data. With some abuse of vector notation in what follows in this section, we consider that `bold' symbols represent time-series vector for only the post intervention period. Then:
+\textbf{
+\begin{align}
+    \bz^m(\alpha) &= \Psi(\bm(\alpha) - \bar{\bY})\\
+    \bz^I &= \Psi(\bY^I_{1}- \bar{\bY})\\
+    p[\bY^I_{1}|\bm(\alpha)] &= p[\bz^I_{1}|\bz^m(\alpha)]\, \times {\rm J}(\bY^I_{1})
+    \label{plik}
+\end{align}}
+where the likelihood for the transformed data given the model is a Gaussian
+\begin{equation}
+    p[\bz^I_{1}|\bz^m(\alpha)] = (2\pi)^{-N_{\rm post}/2}\det C^{-1/2}\exp\left[-\big(\bz^m(\alpha) - \bz^I\big)^T C^{-1} \big(\bz^m(\alpha) - \bz^I\big)/2\right] 
+    \label{plikg}
+\end{equation}
+
+Note that this is a data likelihood independent of latent space variables `$\bs$', which 
+have been averaged over by the construction of counter-factual $\bY^I_{1}$ and its 
+associate covariance matrix $C$. 
+
+Hypothesis A, i.e. no effect, corresponds to $\alpha=0$ since $[\bY^I_{1}|\bm(0)]$ measures the likelihood of the observed post intervention data under the modeled counter-factual: if there is no effect due to the tax, this likelihood should be high.
+Under likelihood ratio test, Hypothesis B corresponds to $\alpha=1$, where the likelihood ratio is maximized, so we obtain
+\begin{equation}
+\frac{p_B}{p_A}<
+    % \exp\left[\big(\hat Y^m_{1, t} - Y^I_{1, t}\big)^T C^{-1} \big(\hat Y^m_{1, t} - Y^I_{1, t}\big)/2\right] = \exp\left(\chi^2/2\right)
+    \exp\left[\big(\hat \bz^m_{1} - \bz^I_{1}\big)^T C^{-1} \big(\hat \bz^m_{1} - \bz^I_{1}\big)/2\right] = \exp\left(\chi^2/2\right)
+    \label{upper}
+\end{equation}
+where the Jacobian cancels out since it is always evaluated at the observed data point and $\hat \bz^m$ corresponds to the model at the predicted counter-factual i.e. $\alpha=0$.
+
+We quote this as an upper limit because the hypothesis B is quite unreasonable: it assumes that the 
+model can exactly fit the observed data at $\alpha=1$, which is maximally a posteriori approach. Moreover, there is no penalty for 
+having an extra parameter $\alpha$, which is equivalent to hypothesis B to have a prior that is a 
+delta function at $\alpha=0$. We improve on both 
+of these aspects below. However, an upper limit can still be useful: 
+if even an upper limit gives little evidence for hypothesis 
+B, then there is no point in developing more 
+sophisticated models that are more a priori. 
+
+For CA tobacco tax example, we show the ratio of the likelihood to $\alpha=1$ in the right panel of Fig. \ref{fig:predict} for the two cases- where we have Gaussianized the data and where we have simply used the raw data to do the analysis. We find $p_B/p_A\sim14$ for the fiducial case while its $p_B/p_A\sim500$ when we Gaussianize the data. This vast difference in the significance shows the need to correctly Gaussianize the data prior to the analysis. This indicates that the CA tax impact can be statistically significant and hence we develop a more objective analysis approach in the next sub-section. 
+
+% \begin{figure}
+%     \centering
+%     \resizebox{0.8\columnwidth}{!}{\includegraphics{./figs/p_value.png}}
+%     \caption{Hypothesis testing upper limit to estimate the significance of the difference between the observed and counterfactual data for CA: The negative log likelihood ratio as measured in terms of chi-square statistic (left) and associated p-value (right). The horizontal line corresponds to p-value=0.05.}
+% \label{fig:p_value}
+% \end{figure}
+
+\subsection{Hypothesis testing with a-priori model}
+\label{sec:hypothesis2d}
+We would like to design a model to 
+test the two hypotheses A and B, such that their corresponding models are not influenced by the post-treatment data of the single unit sample $Y^I_{1, t}$. Above we established this condition for hypothesis A, which is determined by the synthetic model of equation \ref{eq:model} and which is by construction 
+independent of post-treatment data of single unit. 
+We wish to establish the same condition for hypothesis B. In equation \ref{eq:model} we have a vector $\mathcal{R}\hat{s}_{1, t}$ that uses pre-treatment data, and the mean vector $\bar{Y_t}$, that is single unit data independent, and both vectors can be used for the hypothesis B. 
+To test hypothesis B acknowledge the possibility that the the pre-intervention data does not constrain the counter-factual over the entire period of interest and hence the prediction is not completely correct. To rectify this, we allow upto $n^{\rm th}$ order polynomial corrections in the prediction to modify our model for the counter-factual. This has the virtue of being 
+completely a-priori once we have fixed $n$, i.e. not influenced by the single unit post-treatment data, while also allowing to test the impact of treatment. 
+
+In CA tobacco tax case, to test the assertion that the tax has had an impact on tobacco sales in California, we test whether California data has a second order polynomial correction over the counter-factual predicted using only the pre-intervention data. 
+Thus our model becomes 
+\begin{equation}
+    m_t(\alpha,\beta) = \hat{Y}_{1, t}  + \alpha (T-T_0) + \beta (T-T_0)^2 \quad \forall  t \in (T_0, T_f),
+    \label{eq:model2d}
+\end{equation}
+and we can use this model for the data likelihood of equation \ref{plik}. 
+
+We introduced two new parameters, $\alpha$ and $\beta$, that we will fit for.
+For hypothesis testing we need to average the likelihood over these two parameters so as to correctly penalize for the increased flexibility of the model. 
+We also need to put some quantitative notion on what hypothesis B means in the context of these two parameters in order to get a notion of prior for these coefficients. 
+To model this, we use our control states and fit the observed data for these states, $d_{i, t}$, with a second order polynomial. Let the minimum and maximum values fit for the polynomial coefficients such be ($\alpha_{\rm min}, \alpha_{\rm max}$) and ($\beta_{\rm min}, \beta_{\rm max}$). Now, we expect all the states to be drawn from the same distribution around the mean national data and be able to use these control states to model the prior for our counter-factual CA data. Thus as an a-priori assumption, we expect the $\alpha,\, \beta$ parameters for the correction to our predicted counter-factual CA data to lie within this region of parameter space spanned by other states. To be maximally conservative, we begin by assuming flat prior in this range i.e.
+\begin{equation}
+p(\alpha)= \frac{1}{\alpha_{\rm max}-\alpha_{\rm min}}, \quad 
+p(\beta)= \frac{1}{\beta_{\rm max}-\beta_{\rm min}},\quad {\rm such\, that} \, m_t(\alpha,\beta) < \hat{Y}_{1, t},
+\label{eq:priorab}
+\end{equation}
+where we have additionally imposed the last condition to ensure that we are testing the hypothesis that the sales tax reduced the tobacco consumption. As a result of these condition, the priors get modified such that we begin with $\alpha_{\rm max} = \beta_{\rm max} = 0$.
+
+Based on physical arguments, one can further shrink the prior space, 
+because
+$\alpha\ll 0, \beta\ll 0$ will lead to $m_t(\alpha,\beta)<0$ after some time period $t>T$, which is unphysical since we are predicting number of packets sold which has to be positive.
+If we choose that the model prediction should be positive for a certain time period after the intervention, these regions of the parameter space can be excluded.
+We show this boundary as dashed red line in Fig. \ref{fig:hypothesis2d} for a period of 20 years after intervention. 
+Note that $p(\alpha,\beta)$ is a proper probability distribution, normalized to unity. 
+This prior is penalizing hypothesis B, since it spans the entire range of values spanned by the control states with equal probability.
+
+
+Variables $\alpha$ and $\beta$ are latent and need to be averaged over, just as we did this for the Fourier modes $\bs$.
+Again, hypothesis A corresponds to the observed data being likely under the predicted counter-factual 
+\begin{equation}
+p_A(\bY^I_{1})=p[\bY^I_{1}|\bm(\alpha=0,\beta=0)).
+\end{equation}
+Hypothesis B can be evaluated as the data likelihood averaged over $\alpha$ and $\beta$: 
+\begin{equation}
+    p_B(\bY^I_{1})=\int d\alpha d\beta p(\alpha,\beta) p[\bY^I_{1}|\bm(\alpha)]. 
+    \label{eq:marginalpB}
+\end{equation}
+
+We do the numerical analysis by discretizing $\alpha$ and $\beta$ on a grid to perform the integral numerically.
+The integral peaks at the values of $\alpha$ and $\beta$ that fit the data better than hypothesis A, which corresponds to $\alpha=\beta=0$. 
+However, now we are not able to fit the data exactly even at the best fit value. Thus this method avoids over-fitting and is completely a-priori. 
+It also includes the Occam's razor penalty: 
+hypothesis B includes two additional parameters, $\alpha$ and $\beta$, which improve 
+the fit of the model to the data but at the expense of increased complexity of the model. This increased complexity
+must be penalized since simply reporting the results at the best fit values of $\alpha$ and $\beta$ would overfit. 
+The penalty is achieved by evaluating the mean likelihood averaged over $\alpha$ and $\beta$
+prior, rather than just reporting the likelihood at the best fit value.
+If the maximum likelihood value lies close to the boundary of $\alpha$ or $\beta$,
+we repeat the analysis by doubling the span of the flat prior for that dimension, and to be conservative we increase the prior
+in both directions equally.
+%Overall, this procedure is equivalent to the latent space marginalization discussed in the context of Fourier modes above. 
+
+
+\begin{figure}
+    \centering
+    \resizebox{1\columnwidth}{!}{\includegraphics{./figs/maximize2D.png}}
+    \caption{(Left) We show the model prediction for the model Eq. \ref{eq:model2d} that maximizes the likelihood in hypothesis testing of section \ref{sec:hypothesis2d} (orange), along with the true sales in California (green) with the mean national sales (purple) and prediction for the counter-factual (blue). (right) We show the likelihood of the data under the model as a function of the two parameters, normalized to the value at the predicted counter-factual, i.e. $\alpha, \beta=0$. Prior constraints are 
+    that the sales are reduced (orange line). The region below the dashed red line is excluded by constraining the model to predict non-negative sales 20 years after the intervention.}
+\label{fig:hypothesis2d}
+\end{figure}
+
+
+For CA tobacco sales data, we show the results of this hypothesis testing in Figure \ref{fig:hypothesis2d}. For this analysis, we had to double the span of initial $\beta$ axis since the maximum likelihood value lies in the region $\beta>0$. On the left, we show the model prediction which maximizes the likelihood and note that it does not exactly fit the data, thus avoiding over-fitting to a good extent. On the right, we show the likelihood of the data as a function of the two parameters $\alpha,\, \beta$, normalized to the predicted counter-factual which is $\alpha=\beta =0$. Note that the usage of flat-prior over the entire range of these parameters spanned by the control states penalizes hypothesis B since they do not contribute to the integral in Eq. \ref{eq:marginalpB} while contributing to the volume in prior (Eq. \ref{eq:priorab}). As a result, we find
+\begin{equation}
+\frac{p_B(\bY^I_{1})}{p_A(\bY^I_{1})}=3.3,
+\label{E}
+\end{equation}
+which is lower than simply quoting the ratio with the maximum likelihood which is $~14$. We thus conclude that the evidence of CA sales tax having an impact on tobacco consumption is $3.3:1$ in favor of having an impact. This is a mild evidence, and should be contrasted with the upper limit of equation \ref{upper}, 500, using a maximally a posteriori model. This number 3.3 should be viewed
+more as a guidance, since it does depend on the 
+choice of the prior for $\alpha$ and $\beta$: 
+unreasonable choices of the prior such that 
+it is very broad can 
+push this number arbitrarily lower, while equally unreasonable 
+a posteriori choices of very narrow 
+prior can push it up to 14 for $\alpha$, 
+$\beta$ parametrization of the model (or 500 
+for even more unreasonable maximally 
+a posteriori parametrization). 
+
+\section{Discussion}
+\label{sec:discussion}
+Estimating causal effects in a policy setting from the observational data is a challenging problem in econometric. In this work, we propose a novel method to approach this problem by performing longitudinal time correlation analysis. We advocate pre-processing the data to make it Gaussian and stationary by applying non-linear transformations since it reduces the dimensionality of the problem and frames the analysis as a Gaussian process (GP). However instead of using a parametric form of kernel to learn the correlations as is done in typical GP, we learn the Fourier modes which are the Fourier counterpart of the correlation function. This allows us to learn correlations on all time scales. Since we fit all the latent parameters from the data, it also makes our analysis non-parametric and optimal.
+
+We fit for the latent Fourier modes by first estimating a prior on these, which is done by measuring the power spectrum (and hence correlations) for all the control units. This is then combined with the pre-treatment outputs for the treated unit under the assumption of Gaussian noise model. Our method is novel in that if we consider the noise to be vanishingly small for the pre-treatment outcomes, we are able to achieve exact balance on them. At the same time, since we are operating under the assumption of Gaussian likelihood, our method provides us with an estimate for the convariance matrix of the predictions. This can then be used to do hypothesis testing and establish the significance of the causal effects of interest.
+
+We apply our method to the well known problem of estimating the effect of 1988 CA tax on tobacco sales. We perform the analysis both, with and without Gaussianizing the data elucidate the importance of Gaussinization. In both cases, we find that the sales reduce by $\sim 34$ packets per-capita as compared to the counterfactual by year 2000. However in case of the Gaussianized data, since we have restricted the impact of outliers, the errors on the predicted counterfactual are smaller. This has important consequences in establishing the significance of the intervention. Using per-capita personal income for different states as an additional datasets, we also show how our analysis can be extended to involve multiple covariates of interest. Our method takes into account the strenght of cross-correlations between different datasets to correctly accounts for the influence of these additional covariates on the variable of interest. 
+
+
+Performing supplementary analysis to establish the significance of the primary analysis is also an open problem in econometric, with no clear preferred approach to do so. Common approaches include placebo analysis, sensitivity and robustness analysis \cite{Abadie10, Athey2016}. However we are in a unique position for this analysis since our approach naturally provides a covariance estimate for the predicted counterfactual. Here we have proposed two approaches building upon this model based inference. In the first method, we assume that the true model for the counterfactual smoothly interpolates between our predicted counterfactual and the observed outcomes with respect to some parameter $\alpha$. We estimate the likelihood of the observed post-treatment outcomes under this and compare the likelihood for the two extreme cases i.e. when the true model is the same as our prediction vs when the true model is the truth. Both these cases are extremely unlikely, but the likelihood ratio for these cases provides us an upper bound that is useful in its own sense.
+
+In our second approach, we allow more flexibility by assuming that the true model is our predicted model supplemented with some parametric function. However, instead of simply comparing the likelihood ratio at the maxima (as we vary the parameters) with our predicted counterfactual, we appropriately penalize the increased flexibility of our model by marginalizing over all the parameters of the parametric function. This makes our approach very conservative. For this marginalization, we estimate the priors on these parameters from the control units themselves. In this approach, we have also striven to be completely a-priori i.e. ensure that our method is completely independent of the post-treatment outcomes for the treated unit, thus avoiding any kind of over-fitting which again makes our significance estimation more conservative. 
+
+We applying both these methods to the CA tobacco tax example, for both the basic and Gauissianized analysis. As expected, we find higher significance in the case of Gaussianized data since we have reduced the impact of outliers. We find that while the upper bound on the likelihood ratios is impressive 500, more conservative odds in favor of CA sales tax having caused any impact on tobacco sales are $1.86:1$. In subsequent analysis, one can then impose physical priors on the parameters estimated from the data to improve odds ratio to $3.3$.
+
+\CM{Finishing remarks}
+
+
+
+\bibliographystyle{unsrt}  
+\bibliography{references}  %%% Remove comment to use the external .bib file (using bibtex).
+
+
+\appendix
+\section{Extension to multiple datasets}
+\label{app:covariates}
+In this section, we briefly discuss how to extend our methodology to higher dimensions i.e. when we have more than one dataset. Being able to use such covariates is important in econometrics since they can be correlated and hence informative about the primary variable of interest. Its also essential to eliminate the effects of such confounding variables when doing causal inference so as to make certain that the observed effect was the result of the treatment of interest, and not of other correlated variables. 
+
+Without loss of generality, lets assume a similar setup to the main text. Suppose we have two datasets $d^a_{i, t}, d^b_{i, t}$ from time period $[0-T]$, of which we are interested in measuring the effect of a treatment at time $T_0$ on the outcomes $d^a$ for the unit $i=1$. We assume that we have already made both the data Gaussian and homoscedastic, as well as removed the mean for each of them. Thus together, we treat these datasets as a two-dimesional Gaussian $(d^a, d^b)$. As in the main text, let $\bs^a, \bs^b$ be the Fourier modes corresponding to each data time series. We estimate the prior on these modes from the control units by measuring the mean auto-spectra for each data set. But differently from the primary analysis, we also measure the cross-spectra (cross-correlation) $ \mathcal{P}_{i}^{ab} = \bs^a_i \bs_i^{b\dagger}$ for each unit. The amplitude of this cross-spectrum measures how strongly are the two outcomes correlated on different time scales. We use the mean of the auto and cross-spectra over all control units to construct prior covariance matrix $C_{\rm pr}$, similar to the fiducial analysis. Under assumptions of stationarity, the covariance matrix is block-diagonal with the two power spectra on the diagonal and the cross spectra on the major block off-diagonal. 
+
+Given a prior, we can now estimate the Fourier modes for the exposed unit. For this, we concatenate the modes for both the data set to construct a single vector $\bs_1^{ab} = (\bs_1^{a \frown} \bs_1^b)$ (where we have used $^\frown$ to represent concatenation). Then, under the assumption of independent Gaussian noise for the observed outcomes, i.e. the noise in the multiple datasets is uncorrelated, we have the posterior
+
+\begin{align}
+    P(\bs_1^{ab}|\bd_1^a, \bd_1^b) &= (2\pi)^{-(M+2N)/2} {\rm det} (C_{\rm pr} \mathcal{N}_a \mathcal{N}_b)^{-1/2} \times \nonumber  \\
+    & {\rm exp} \Big(-\frac{1}{2} \Big\{\bs_1^{ab^\dagger} C_{\rm pr}^{-1}\bs_1^{ab} + 
+    [\bd_1^a - \mathcal{R}\bs_1^a]^\dagger \mathcal{N}^{-1}_a[\bd_1^a - \mathcal{R} \bs_1^a] + [\bd_1^b - \mathcal{R}\bs_1^b]^\dagger \mathcal{N}_b
+    ^{-1}[\bd_1^b - \mathcal{R} \bs_1^b] \Big\}\Big)
+    \label{eq:posteriorab}
+\end{align}
+where  $M, N$ is the dimension of the latent parameter and data space, both equal to $T$ in the absence of binning; $\mathcal{N}_{a/b}$ is the noise covariance matrix for the two data, both modeled as a diagonal, $\mathcal{N}_{a/b}=\bf{I}\sigma_{t,a/b}^2$. 
+
+Again, this posterior can then be maximized with respect to the latent parameters for the pre-intervention data for dataset $a$ and for the full time period for $b$, since we are not interested in estimating the counterfactual for the latter. This is achieved my maximizing the log-posterior (after dropping all contants) with respect to $\bs^{ab}_1$ 
+\begin{equation}
+    \mathcal{L} = \sum_{t = T_i=1}^{T_0} \frac{ \Big(\mathcal{R}s_{1, t}^a - d^a_{1,t} \Big)^2}{\sigma_{a,t}^2} + 
+        \sum_{t = T_i=1}^{T} \frac{ \Big(\mathcal{R}s_{1, t}^b - d^b_{1,t} \Big)^2}{\sigma_{b,t}^2} + \bs_1^{ab \dagger} C_{\rm pr}^{-1}\bs_1^{ab}
+    \label{eq:posterior2}
+\end{equation}
+
+where again, if we have some prior knowledge about the noise, we can use it to construct $\sigma^2_{a, t \in (T_i, T_0)}$ and $\sigma^2_{b, t \in (T_i, T)}$. Otherwise under the assumption of no noise in the data, we set both the noises to be very small ($\sigma^2 \rightarrow 0$). The off-diagonal entries in the block-diagonal covariance matrix $C_{\rm pr}$ capture the correlations between the two Fourier modes $\bs^a, \bs^b$ and hence the outcomes of the second dataset are able to influence the Fourier modes and hence the prediction for the variable of interest.
+
+\begin{figure}
+    \centering
+    \resizebox{\columnwidth}{!}{\includegraphics{./figs/2dataanalysis.png}}
+    \caption{(Left) We show the mean auto and cross spectra for per capita tobacco sales and personal income. We also show the predicted sales (middle) and personal income (right) (orange) for the counterfactual CA and compare it with the predicted sales of the Gaussian analysis from the main text (blue).}
+\label{fig:2danalysis}
+\end{figure}
+
+
+For the CA tobacco tax example, we follow Ref. \cite{Abadie10} and in addition to tobacco sales data, we use the per-capita personal income data for different states sourced from \cite{sourceincome}. We make both the datasets Gaussian as outlined above. Since the personal income has consistently increased from 1970-2017, the data for income is very heteroscedastic. To correct for this, in addition to removing the mean of the data, we also scale both the datasets by the national standard deviation at every time period. Then we estimate the prior convariance matrix by measuring the mean auto and cross spectra for these variables from the 38 control units. These are shown in Fig. \ref{fig:2danalysis}. The cross-spectra for the two datasets is less than either of the auto-spectra implying that the two datasets are not very strongly correlated. However since we are only interested here in developing the approach to take into account multiple variables at the same time, this should suffice for our current purpose. This also elucidates an additional advantage of our approach - we do not require precise domain knowledge to pre-determine if the variable is an appropriate covariate or not but can instead use all the variables of interest and our analysis should be able to correctly incorporate all the cross correlations with the primary variable while constructing the counterfactual. In the middle panel in Fig. \ref{fig:2danalysis}, we show the new counterfactual prediction for CA tobacco sales and note that it is not very different from the analysis of the main text. This is due to the weak correlation between the personal income and tobacco sales established with the cross-spectra. On the other hand, since we assume vanishing noise in our Gaussian noise model, we are able to exactly balance the personal income data for CA with the predicted counterfactual. In the end, we also note that while not shown here, the covariance matrix for the predicted counterfactual sales can be constructed similarly by extending Eq. \ref{eq:cov} to multi-dimensional Gaussian and the hypothesis testing framework naturally incorporates this covariance.
+
+\end{document}
+
+%###############################################
+
+
+
+% \subsection{Hypothesis testing with a-priori model}
+
+% We would like to design a model to 
+% test the two hypotheses A and B, such that their corresponding models are not influenced by the post-treatment data of the single unit sample $Y^I_{1, t}$. Above we established this condition for hypothesis A, which is determined by the synthetic model of equation \ref{eq:model} and which is by construction 
+% independent of post-treatment data of single unit. 
+% We wish to establish the 
+% same condition for hypothesis B. In equation \ref{eq:model} we have a vector $\mathcal{R}\hat{s}_{1, t}$ that uses pre-treatment data, and the mean vector $\bar{Y_t}$, that is single unit data
+% independent, and both vectors can be used for the hypothesis B. To test hypothesis B we 
+% can use a constant rescaling of these two vectors 
+% with parameters $\alpha$ and $\beta$ as 
+% our model: this has the virtue of being 
+% completely a-priori, i.e. not influenced by 
+% the single unit post-treatment data, while also 
+% allowing to test the impact of treatment. 
+
+% In CA tobacco tax case, to test the assertion that the tax has had an impact on tobacco sales in California, we test whether California data follows a different mean post intervention than the one before intervention. Since our assumption prior to the intervention is that CA follows the national mean like all other states, but with fluctuations around it as allowed by the 
+% power spectrum prior, we allow to 
+% change the post-intervention mean in the prediction when fitting for the synthetic data. We also allow to reduce the importance of pre-treatment data on the model. 
+% Thus our model becomes 
+% \begin{equation}
+%     m_t(\alpha,\beta) = \alpha \bar{Y}_t + \beta \mathcal{R}\hat{s}_{1, t} \quad \forall  t \in (T_0, T_f),
+% \end{equation}
+% and we can use this model for the data likelihood of 
+% equation \ref{plik}. 
+
+% We introduced two new parameters, $\alpha$ and $\beta$, 
+% that we will fit for. For hypothesis testing we need to 
+% average the likelihood over these two parameters. 
+% We also need to put some quantitative notion on what 
+% hypothesis B means in the context of these two parameters. 
+% Parameter $\alpha$ only justifies hypothesis B if
+% $\alpha<1$: we are testing the hypothesis that tax reduces the tobacco consumption. 
+% It also needs to be positive, $\alpha>0$. 
+% Similarly, parameter $\beta$ is supposed to model 
+% a sudden effect of intervention, disconnecting it from the previous 
+% trends. Since we want to model this as a reduction of the 
+% likelihood term it means that $0<\beta<1$.
+% We will thus use a very simple flat prior, 
+% \begin{equation}
+% p(\alpha,\beta)= \begin{cases}
+% 1 & (\rm{if}\quad 0<\alpha,\beta<1) \\ 0 & {\rm otherwise}. \\ 
+% \end{cases}
+% \end{equation}
+% Note that $p(\alpha,\beta)$ is a proper probability distribution, normalized to unity. 
+% This prior is penalizing hypothesis B, since it gives equal 
+% probability to even rather extreme cases such as $\alpha=0$, and other 
+% choices can be made. 
+
+% Variables $\alpha$ and $\beta$ are latent and need to be averaged over, just as 
+% we did this for the Fourier modes $\bs$. Hypothesis A corresponds to 
+% \begin{equation}
+% p_A(Y^I_{1, t})=p[Y^I_{1, t}|\bm(\alpha=1,\beta=1)).
+% \end{equation}
+% Hypothesis B can be evaluated as the data likelihood averaged over $\alpha$
+% and $\beta$: 
+% \begin{equation}
+%     p_B(Y^I_{1, t})=\int d\alpha d\beta p(\alpha,\beta) p[Y^I_{1, t}|\bm(\alpha)]. 
+% \end{equation}
+
+% We do the numerical analysis by discretizing $\alpha$ and $\beta$ on a grid to perform the 
+% integral numerically. The integral peaks at the values of $\alpha$ and $\beta$ that fit the 
+% data better than hypothesis A, which corresponds to $\alpha=\beta=1$. 
+% However, now we are not able to fit the data exactly even at the best fit value. Thus this method avoids over-fitting and is completely a-priori. It also includes the Occam's razor penalty: 
+% hypothesis B includes two additional parameters, $\alpha$ and $\beta$, which improve 
+% the fit of the model to the data, but at the expense of increased complexity of the model, 
+% which must be penalized: reporting the results at the 
+% best fit values of $\alpha$ and $\beta$ would overfit. 
+% The penalty is achieved by evaluating the mean likelihood averaged over $\alpha$ and $\beta$, rather 
+% than just reporting the likelihood at the best fit value. This procedure is equivalent to the latent space 
+% marginalization discussed in the context of Fourier modes above. 
+
+% For CA tobacco sales data this 
+% hypothesis testing gives
+% \begin{equation}
+% \frac{p_B(Y^I_{1, t})}{p_A(Y^I_{1, t})}=2.
+% \label{E}
+% \end{equation}
+% We thus conclude that the evidence of CA sales tax having an impact on tobacco consumption is 
+% $2:1$ in favor of having an impact. This is a very mild evidence, hardly worth calling it evidence 
+% at all, but is not unexpected given that the upper limit of equation \ref{upper} is 7, using a 
+% maximally a posteriori model. 
+
+
+
+
+% \begin{figure}
+%     \centering
+%     \resizebox{1\columnwidth}{!}{\includegraphics{./figs/alphavarymean.png}}
+%     \caption{$\Delta \chi^2$ for different states as a function of the the parameter varying mean post intervention}
+% \label{fig:p_valuevary}
+% \end{figure}
+
+% In Fig. \ref{fig:statevary}, we show the maximum difference for all other states. 
+% Based on this again, we do not find any significant evidence of taxes having changed sale of tobacco in California
+
+% \begin{figure}
+%     \centering
+%     \resizebox{1\columnwidth}{!}{\includegraphics{./figs/state_alphavarymean.png}}
+%     \caption{Maximum $\Delta \chi^2$ for different states when varying mean post intervention}
+% \label{fig:statevary}
+% \end{figure}
+
+% \begin{figure}
+%     \centering
+%     \resizebox{0.8\columnwidth}{!}{\includegraphics{./figs/p_value.png}}
+%     \caption{The significance of the difference in as measured in terms of chi-square statistic (left) and associated p-value (right). The horizontal line corresponds to p-value=0.05.}
+% \label{fig:p_value}
+% \end{figure}
+
+
+% \begin{figure}
+%     \centering
+%     \resizebox{1\columnwidth}{!}{\includegraphics{./figs/state_chisq.png}}
+%     \caption{The estimated difference and associated chi-square value for the inteprolation analysis on other states}
+% \label{fig:states}
+% \end{figure}
+
+% \subsubsection{Permutation Trials}
+% To assess the robustness of our procedure, we perform a placebo study where we repeat our entire analysis for all other states and measure the expected difference and its significance. 
+% This is shown in Fig. \ref{fig:states}
