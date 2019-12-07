@@ -40,15 +40,18 @@ for iy, yy in enumerate(years):
 predictors.loc['cost'] = np.array(costmatrix).mean(axis=0)*100
 
 
-odir = '3yr'
-predictkeys = [1975, 1980, 1988]
+odir = 'all_lag'
+#predictkeys = [1975, 1980, 1988]
+predictkeys = list(years[:iyear].astype(int))
+#predictkeys = None
 try : os.makedirs('output_synth/%s/'%odir)
 except Exception as e: print(e)
 
 
+
 for iss, ss in enumerate(statesid):
     if iss in indexsplit[rank]:
-        print('Rank %d for State %s'%(rank, ss))
+        print('Rank %d for State %s out of '%(rank, ss), [statesid[j] for j in indexsplit[rank]])
         output = synth_tables( predictors,
                        outcomes,
                        ss,
@@ -59,15 +62,15 @@ for iss, ss in enumerate(statesid):
                      )
 
         np.savetxt('output_synth/%s/%s_outcome.txt'%(odir, ss), np.vstack((years, output[0], output[1])).T, header='year, synthetic, actual')
-        np.savetxt('output_synth/%s/%s_predictor.txt'%(odir, ss), np.vstack((predictkeys, output[2].values.T, output[4])).T, header='predictor, synthetic, actual, weights')
+        if predictkeys is not None: np.savetxt('output_synth/%s/%s_predictor.txt'%(odir, ss), np.vstack((predictkeys, output[2].values.T, output[4])).T, header='predictor, synthetic, actual, weights')
         with open('output_synth/%s/%s_controls.txt'%(odir, ss), 'w') as ff:
             for i in range(output[5].size):
                 ff.write("%s\t%0.3f\n"%(controlstates[i],  output[5][i])) #
 
     else:
-        print(rank, iss, ss)
+        continue
 
-print('\nDone\n')
+print(rank, '\nDone\n')
 
 
 
