@@ -1,4 +1,13 @@
 import numpy as np
+from scipy.interpolate import interp1d
+from scipy.optimize import minimize
+from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from scipy import stats
+
+
+from casetup import *
+
+
 
 def psfunc(x, x2=None, real=True, ortho=True):
 
@@ -25,7 +34,7 @@ def DFT(x, real=False, matrix=False, ortho=True, inv=False):
         Minv *= np.sqrt(N)
     if matrix: 
         if inv: return Minv
-    else: return M
+        else: return M
     fft = np.dot(M, x)
     if real: fft = fft[:N//2+1]
     return fft
@@ -89,7 +98,7 @@ def getcov(ps, padl, padr, n0=0.01, ninf=1e10, real=True):
     ftmatrix = DFT(psf*0, matrix=True)
     ftmatrixdag = DFT(psf*0, matrix=True, inv=True)
     rtnr = np.dot(ftmatrixdag, np.dot(invnoise, ftmatrix))
-    d = np.linalg.inv(invsnoisek + rtnr) 
+    d = np.linalg.inv(invsnoisek + rtnr)
     cov = np.dot(ftmatrix, np.dot(d, ftmatrixdag)).real
     return cov       
 
@@ -137,6 +146,8 @@ def gettf(padl, padr, ff, pk, real=True, ny=yy, samples=False, seed=100):
 def gettfprior(data1, padl, padr, n=2000, samples=False, seed=100, al=1.0, data2=None):
 
     yy = years.size
+    yy = data1.shape[1] # -padl-padr
+    print(data1.shape[1], padl, padr, yy)
     ff = np.fft.rfftfreq(yy)
     xp = data1 - data1.mean(axis=0)*al
     if data2 is not None: xp2 = data2 - data2.mean(axis=0)*al
@@ -147,3 +158,25 @@ def gettfprior(data1, padl, padr, n=2000, samples=False, seed=100, al=1.0, data2
 #     pkm = (np.abs(np.fft.rfft(xp, axis=1, norm='ortho'))**2).mean(axis=0)
     return gettf (padl, padr, ff, pkm, real=True, ny=yy, samples=samples, seed=seed)
     
+
+
+
+def gauss(x, a, mu, s):
+# def gauss(x, p):
+#     a, mu, s = p
+    norm = 1/np.sqrt(2*np.pi*s**2)
+#     norm = 1
+    return a*norm*np.exp(-0.5*((x-mu)/s)**2)
+
+
+
+def fitgauss(xx, bins, normed):
+    h, x = np.histogram(xx, bins=bins, normed=normed)
+    x = x[1:] + x[:-1]
+    x /= 2 
+    p0 = [h.max(), xx.mean(), xx.std()]
+    ftomin = lambda p: ((gauss(x, *p) - h)**2).sum()
+    pp = minimize(ftomin, p0, method='Nelder-Mead', options={'maxiter':5000})
+    print('mu=%.2f, s=%.2f'%(pp.x[1],pp.x[2]))
+#     pp = cf(gauss, x, h, p0, )[0]
+    return (x, gauss(x, *pp.x))

@@ -35,7 +35,7 @@ costmatrix = []
 for iy, yy in enumerate(years):
     outcomes.loc[int(yy)] = subdata[subdata['Year'] == yy]['Data_Value'].values.astype('float32')
     if iy<=iyear: 
-        predictors.loc[int(yy)] = subdata[subdata['Year'] == yy]['Data_Value'].values.astype('float32')
+        predictors.loc[int(yy)] = subdata[subdata['Year'] == yy]['Data_Value'].values.astype('float33')
         costmatrix.append(costs[costs['Year'] == yy]['Data_Value'].values.astype('float32'))
 predictors.loc['cost'] = np.array(costmatrix).mean(axis=0)*100
 

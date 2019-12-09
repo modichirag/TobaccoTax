@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 
 
-data = pd.read_csv('../The_Tax_Burden_on_Tobacco__1970-2017.csv')
+try: data = pd.read_csv('../The_Tax_Burden_on_Tobacco__1970-2017.csv')
+except: data = pd.read_csv('./The_Tax_Burden_on_Tobacco__1970-2017.csv')
 
 # states = data['LocationDesc'].unique()
 statesid = data['LocationAbbr'].unique()
