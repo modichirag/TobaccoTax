@@ -74,7 +74,7 @@ def pred(p, means, prior=False):
     else: return x
 
 
-def chisq(p, means, casales, priork, padl, sigma=1, i1=18,verbose=False):
+def chisq(p, means, casales, priork, padl, i1, sigma=1, verbose=False):
     x, ps = pred(p, means, prior=True)
     res = (x[padl:padl+i1] - casales[:i1])**2 / sigma**2
     prior = ps/priork 
@@ -82,7 +82,7 @@ def chisq(p, means, casales, priork, padl, sigma=1, i1=18,verbose=False):
     return sum(res) + sum(prior)
 
 
-def getcov(ps, padl, padr, n0=0.01, ninf=1e10, real=True):
+def getcov(ps, padl, padr, i1, n0=0.01, ninf=1e10, real=True):
     if real: psf = np.concatenate([ps, ps[1:-1][::-1]])
     else: psf = ps.copy()
     invsnoisek = np.linalg.inv(np.diag(psf))
