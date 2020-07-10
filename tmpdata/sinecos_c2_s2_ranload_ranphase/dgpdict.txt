@@ -1,0 +1,1 @@
+{'seed': 100, 'cos': [0.5, 1.0], 'sine': [0.3, 0.8], 'loadings': 'random', 'noise': 0.3, 'monoamp': 1, 'fix': 1, 'phases': 'random'}
