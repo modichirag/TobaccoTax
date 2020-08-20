@@ -88,7 +88,7 @@ def pad_array(arr, padl, padr, ps=False):
 
 def gettf(pk, ff, ny, padl, padr, real=True, samples=False, seed=100):
     ffpad = np.fft.rfftfreq(ny + padl + padr)
-    ppad = interp1d(ff, pk)(ffpad)
+    ppad = interp1d(ff, pk, fill_value="extrapolate")(ffpad)
     xxs, ps = sampleps(ffpad, ppad, seed=seed)
     xxpad, pspad = pad_array(xxs, padl, padr, ps=True)
     tf = pspad.T.mean(axis=1)/ps.T.mean(axis=1)
@@ -129,12 +129,12 @@ def logpdf_gauss(x, mean, std, normalized=True, rety=False):
     return result
 
 
-def fitgausspdf(xx, normalized=True, verbose=0):
+def fitgausspdf(xx, normalized=True, verbose=0, method='Nelder-Mead'):
     p0 = [xx.mean(), xx.std()]
     ftomin = lambda p: (-logpdf_gauss(xx, *p, normalized=normalized)).sum()
     if verbose > 1: print(p0, ftomin(p0))
     #pp = minimize(ftomin, p0)
-    pp = minimize(ftomin, p0, method='Nelder-Mead', options={'maxiter':50000})
+    pp = minimize(ftomin, p0, method=method, options={'maxiter':50000})
     if verbose:
         if verbose > 1: print(pp)
         if verbose == 1: print('mu=%.2f, s=%.2f'%(pp.x[0],pp.x[1]))

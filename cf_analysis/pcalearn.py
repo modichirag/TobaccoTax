@@ -38,7 +38,7 @@ class PCAlearn():
             off, norm = (self.cmax+self.cmin)/2., (self.cmax-self.cmin)/2.
             return y*norm + off
     
-    def fit(self, treated, T0, ols=True, verbose=False, method='bfgs', regularization='l2', regwt=0.1, dT=3):
+    def fit(self, treated, T0, ols=True, verbose=False, method='bfgs', regularization='l2', regwt=None, dT=3, retreg=False):
         
         yy = self.normalize(treated.copy())
         
@@ -47,7 +47,7 @@ class PCAlearn():
             yy = yy[:T0]
             pp = np.linalg.pinv(self.pca.components_[:, :T0].T).dot(yy)
             
-        elif type(regwt) == float or type(regwt) == int:
+        elif type(regwt) == float or type(regwt) == int or type(regwt) == np.float64 or type(regwt) == np.float32:
             
             def _chisq(p):
                 yp = self.pca.inverse_transform(p)
@@ -78,7 +78,7 @@ class PCAlearn():
             
             for ir, rr in enumerate(regwt):
                 rmst = 0
-                for tt in range(3, T0, dT):
+                for tt in np.arange(3, T0, dT).tolist() + [T0]:
 
                     def _chisq(p):
                         yp = self.pca.inverse_transform(p)
@@ -96,13 +96,13 @@ class PCAlearn():
                     #rmst += (yy - np.dot(self.pca.components_.T, pp.x) - self.pca.mean_)[tt]**2.
                 if rmst**1. < rms:
                     rms = rmst**1.
-                    #print(pp.x)
+                    #print(rr, pp.x)
                     pp0 = pp
                     ir0 = ir
                 else: pass
             pp = pp0
             regwt = regwt[ir0]
-            if verbose == 1:
+            if verbose >= 1:
                 print("min rms is at reg = %0.4f"%(regwt))
             if verbose > 1: print(pp.fun, sum(pp.x**2)*regwt)
             pp = pp.x
@@ -110,8 +110,88 @@ class PCAlearn():
         yp = np.dot(self.pca.components_.T, pp) + self.pca.mean_
         #yp = self.pca.inverse_transform(pp)
         yp = self.unnormalize(yp)
+        if retreg : return yp, pp, regwt
         return yp, pp
 
+    def fitanalytic(self, treated, T0, verbose=False, regwt=None, dT=3, retreg=False, sigma=None, noise=1, unitwt=True):
+        
+        yy = self.normalize(treated.copy()) - self.pca.mean_
+
+        def _fit(Sigmainv, t0):
+            yy2 = yy.copy()
+            yy2[t0:] = 0
+            components = self.pca.components_.copy()
+            if unitwt: components *= self.pca.explained_variance_.reshape(-1, 1)**0.5
+            phi = components.copy()
+            #if unitwt: phi *= self.pca.explained_variance_.reshape(-1, 1)**0.5
+            phi[:, t0:] = 0
+            noisescale = noise*t0/yy.size
+            
+            A = np.dot(phi, phi.T)/noisescale + Sigmainv
+            Ainv =  np.linalg.pinv(A)
+            w = np.dot(np.dot(Ainv, phi), yy2)/noisescale
+            ypred = np.dot(components.T, w)
+            cov = np.dot(np.dot(components.T, Ainv) , components)
+            err = cov.diagonal()**0.5
+            return ypred, err, w
+            
+        if sigma is not None:
+            Sigmainv = np.diag(np.array(sigma)**-2)
+            yp, err, w = _fit(Sigmainv, T0)
+            yp += self.pca.mean_
+            yp = self.unnormalize(yp)
+            if self.normalization == 'standard': err *= self.stds
+            return yp, err, w
+
+        if regwt is None:
+            Sigmainv = 0 #regwt*np.identity(self.pca.components_.shape[0])
+            yp, err, w = _fit(Sigmainv, T0)
+            yp += self.pca.mean_
+            yp = self.unnormalize(yp)
+            if self.normalization == 'standard': err *= self.stds
+            return yp, err, w
+#            yy = yy[:T0]
+#            pp = np.linalg.pinv(self.pca.components_[:, :T0].T).dot(yy)
+#            yp = np.dot(self.pca.components_.T, pp) + self.pca.mean_
+#            yp = self.unnormalize(yp)
+#            return yp, np.zeros_like(yp), pp
+#            
+        elif type(regwt) == float or type(regwt) == int or type(regwt) == np.float64 or type(regwt) == np.float32:
+            Sigmainv = regwt*np.identity(self.pca.components_.shape[0])
+            yp, err, w = _fit(Sigmainv, T0)
+            yp += self.pca.mean_
+            yp = self.unnormalize(yp)
+            if self.normalization == 'standard': err *= self.stds
+            return yp, err, w
+        
+        else:
+            rms = 1e10
+
+            for ir, rr in enumerate(regwt):
+                rmst = 0
+                Sigmainv = rr*np.identity(self.pca.components_.shape[0])
+                for tt in np.arange(3, T0, dT).tolist() + [T0]:
+                    yp, err, w = _fit(Sigmainv, tt)
+                    rmst += (yy - yp)[tt+1]**2.
+                if rmst**1. < rms:
+                    rms = rmst**1.
+                    #print(rr, w)
+                    ypred, errpred = yp.copy(), err.copy()
+                    pp0 = w
+                    ir0 = ir
+                else: pass
+                
+            yp = ypred + self.pca.mean_
+            yp = self.unnormalize(yp)
+            if self.normalization == 'standard': err = errpred * self.stds
+            else: err = errpred
+            w = pp0
+            regwt = regwt[ir0]
+            if verbose >= 1:
+                print("min rms is at reg = %0.3e"%(regwt))
+            #if verbose > 1: print(pp.fun, sum(pp.x**2)*regwt)
+            if retreg : return yp, err, w, regwt #yp, pp, regwt
+            else:  return yp, err, w
         
 
 
@@ -185,7 +265,7 @@ class PCAYJ():
             return y*norm + off
 
 
-    def fit(self, treated, T0, ols=True, verbose=False, method='bfgs',):
+    def fit(self, treated, T0, ols=True, verbose=False, method='bfgs', noise=1):
 
         yy = self.normalize(treated.copy())
 
@@ -194,7 +274,7 @@ class PCAYJ():
             yp = np.dot(self.pca.components_.T, p) + self.pca.mean_
             diff = yy-yp
             diff[T0:] = 0
-            chisq = np.sum(diff**2)
+            chisq = np.sum(diff**2) / noise
 #             chisq = np.dot(np.dot(diff, self.icov), diff)
             return chisq
         
@@ -227,6 +307,29 @@ class PCAYJ():
         yp = self.unnormalize(yp)
         return yp, pp
 
-
-
     
+    def fitanalytic(self, treated, T0, sigma, verbose=False, noise=1):
+        
+        yy = self.normalize(treated.copy()) - self.pca.mean_
+
+        def _fit(Sigmainv, t0):
+            yy2 = yy.copy()
+            yy2[t0:] = 0 
+            phi = self.pca.components_.copy()
+            phi[:, t0:] = 0
+            noisescale = noise * t0/yy.size
+            
+            A = np.dot(phi, phi.T)/noisescale + Sigmainv
+            Ainv =  np.linalg.pinv(A)
+            w = np.dot(np.dot(Ainv, phi), yy2)/noisescale
+            ypred = np.dot(self.pca.components_.T, w)
+            cov = np.dot(np.dot(self.pca.components_.T, Ainv) , self.pca.components_)
+            err = cov.diagonal()**0.5
+            return ypred, err, w
+            
+        Sigmainv = np.diag(np.array(sigma)**-2)
+        yp, err, w = _fit(Sigmainv, T0)
+        yp += self.pca.mean_
+        yp = self.unnormalize(yp)
+        if self.normalization == 'standard': err *= self.stds
+        return yp, err, w
